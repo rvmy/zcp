@@ -42,7 +42,21 @@ pub fn main(init: std.process.Init) !void {
         return;
     };
 
-    var copier = Copier.init(arena, init.io, parsed_args);
-    try copier.run();
-    std.debug.print("{any}", .{parsed_args});
+    const thread_type = parsed_args.threads;
+
+    switch (thread_type) {
+        .single => {
+            var single: Io.Threaded = .init_single_threaded;
+            var copier = try Copier.init(single.io(), arena, parsed_args);
+            return try copier.run();
+        },
+        .multi => |jobs| {
+            var threaded: Io.Threaded = Io.Threaded.init(init.gpa, .{
+                .async_limit = .limited(jobs),
+            });
+            defer threaded.deinit();
+            var copier = try Copier.init(threaded.io(), arena, parsed_args);
+            return try copier.run();
+        },
+    }
 }
